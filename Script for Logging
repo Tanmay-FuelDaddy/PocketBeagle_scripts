@@ -1,0 +1,65 @@
+Script  for logging, 
+
+
+
+import can
+import gps
+import logging
+
+# Configure loggers  for CAN data
+can_logging = logging.getLogger('can_logger')
+can_logging.setLevel(logging.INFO)
+can_logging.addHandler(logging.FileHandler('can_log.txt'))
+
+# Configure logging for NMEA @ 9600 
+gps_logging = logging.getLogger('gps_logger')
+gps_logging.setLevel(logging.INFO)
+gps_logging.addHandler(logging.FileHandler('gps_log.txt'))
+
+#  CAN  instance for asdfgh
+can_bus = can.interface.Bus(channel='can0', bustype='socketcan')
+
+# Create a GPSD session
+session = gps.gps("localhost", "2947")
+session.stream(gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
+
+# Main loop to continuously read CAN and GPS data
+counter = 0  # Counter for CAN bus packets received and logged
+
+while True:
+    try:
+        # Read CAN packet
+        can_message = can_bus.recv()
+
+        # Log CAN packet
+        can_logging.info(f"CAN ID: {can_message.arbitration_id}\tCAN Data: {can_message.data.hex()}")
+
+        # Increment CAN counter
+        counter += 1
+
+        # Read GPS data
+        gps_report = session.next()
+
+        # Check if a valid report with position and time data is received
+        if gps_report['class'] == 'TPV' and hasattr(gps_report, 'lat') and hasattr(gps_report, 'lon') and hasattr(gps_report, 'time'):
+            # Extract latitude, longitude, and time
+            latitude = gps_report.lat
+            longitude = gps_report.lon
+            timestamp = gps_report.time
+
+            # Log GPS data
+            gps_logging.info(f"Latitude: {latitude}\tLongitude: {longitude}\tTimestamp: {timestamp}")
+
+            # Print GPS data
+            print(f"Latitude: {latitude}\tLongitude: {longitude}\tTimestamp: {timestamp}")
+
+        # Print CAN counter
+        print(f"CAN Packets Count: {counter}")
+
+    except KeyboardInterrupt:
+        can_logging.info("CAN logging stopped.")
+        gps_logging.info("GPS logging stopped.")
+        break
+
+can_logging.shutdown()
+gps_logging.shutdown()
